@@ -229,8 +229,8 @@ main(void)
     cudaError_t err = cudaSuccess;
     /************* LARGE ARRAY DECLRATATIONS AND NX, NY, NZ************/
     int Nx = 143; // (int) floor((xmax-xmin)/res)+1; //143
-    int Ny = 10; //(int) floor((ymax-ymin)/res)+1; //143
-    int Nz = 10; //(int) floor((zmax-zmin)/res)+1; //43
+    int Ny = 143; //(int) floor((ymax-ymin)/res)+1; //143
+    int Nz = 43; //(int) floor((zmax-zmin)/res)+1; //43
 
     // complex<float> cell_sig_fst[N_x_stg][N_z_stg][N_mfreq_spl];
     // complex<float> cell_sig_slow[N_x_stg][N_z_stg][N_mfreq_spl_slow];

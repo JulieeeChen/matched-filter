@@ -95,10 +95,8 @@
 #define deviceCellMF(xx, yy, zz) deviceCellMF[xx*Ny*Nz + yy*Nz + zz]
 
 #define SQR(s)  ((s) * (s))
-inline void mult_complex(float& r1, float& i1, float& r2, float& i2, float&r3, float&i3){
-    r3 = r1* r2 - i1*i2;
-    i3 = r1* i2 + r2* i1;
-}
+#define mult_complex(r1, i1, r2, i2, r3, i3) r3 = r1* r2 - i1*i2; i3 = r1* i2 + r2* i1;
+
 
 using namespace std;
 
@@ -160,12 +158,12 @@ __global__ void matchedFilterKernel(float* Beat_R, float* Beat_I, float* cell_MF
 
         for (int uu = 0; uu < N_x_stg; uu++) {
 
-            float x_diff = SQR(cell_x - u_axis[uu]);
+            float x_diff = SQR(cell_x -  u_axis(uu));
 
             for (int vv = 0; vv < N_z_stg; vv++) { // 2d receiver
 
                 float temp_tau = (cell_dist_t + int_dst * 2 + sqrtf( x_diff +
-                        SQR(cell_z - v_axis[vv]) + SQR(cell_y)) ) / c_sci;
+                        SQR(cell_z - v_axis(vv)) + SQR(cell_y)) ) / c_sci;
 
                 float tmp_zero = (2.0 * fc_sci * temp_tau);
 
@@ -180,7 +178,7 @@ __global__ void matchedFilterKernel(float* Beat_R, float* Beat_I, float* cell_MF
                     sincosf(tmp*pi, &cell_sig_fst_temp_I[nn], &cell_sig_fst_temp_R[nn]);
                     float temp_R, temp_I;
                     mult_complex(cell_sig_fst_temp_R[nn], cell_sig_fst_temp_I[nn],
-                                    Beat_R[uu][vv][nn], Beat_I[uu][vv][nn],
+                                    Beat_R(uu, vv, nn), Beat_I(uu, vv, nn),
                                     temp_R, temp_I);
                     cell_sum_R += temp_R;
                     cell_sum_I -= temp_I;
@@ -190,7 +188,7 @@ __global__ void matchedFilterKernel(float* Beat_R, float* Beat_I, float* cell_MF
                 for (int nn = N_mfreq_spl; nn < 2*N_mfreq_spl; nn++) {
                     float temp_R, temp_I;
                     mult_complex(cell_sig_fst_temp_R[2*N_mfreq_spl-1-nn], cell_sig_fst_temp_I[2*N_mfreq_spl-1-nn],
-                                    Beat_R[uu][vv][nn], Beat_I[uu][vv][nn],
+                                    Beat_R(uu, vv, nn), Beat_I(uu, vv, nn),
                                     temp_R, temp_I);
                     cell_sum_R += temp_R;
                     cell_sum_I -= temp_I;
@@ -203,7 +201,7 @@ __global__ void matchedFilterKernel(float* Beat_R, float* Beat_I, float* cell_MF
                     sincosf(tmp*pi, &cell_sig_slow_temp_I[nn], &cell_sig_slow_temp_R[nn]);
                     float temp_R, temp_I;
                     mult_complex(cell_sig_slow_temp_R[nn], cell_sig_slow_temp_I[nn],
-                                    Beat_R[uu][vv][nn+2*N_mfreq_spl], Beat_I[uu][vv][nn+2*N_mfreq_spl],
+                                    Beat_R(uu, vv, nn+2*N_mfreq_spl), Beat_I(uu, vv, nn+2*N_mfreq_spl),
                                     temp_R, temp_I);
                     cell_sum_R += temp_R;
                     cell_sum_I -= temp_I;
@@ -213,7 +211,7 @@ __global__ void matchedFilterKernel(float* Beat_R, float* Beat_I, float* cell_MF
                     float temp_R, temp_I;
                     mult_complex(cell_sig_slow_temp_R[2*N_mfreq_spl_slow-1-nn],
                                     cell_sig_slow_temp_I[2*N_mfreq_spl_slow-1-nn],
-                                    Beat_R[uu][vv][nn+2*N_mfreq_spl], Beat_I[uu][vv][nn+2*N_mfreq_spl],
+                                    Beat_R(uu, vv, nn+2*N_mfreq_spl), Beat_I(uu, vv, nn+2*N_mfreq_spl),
                                     temp_R, temp_I);
                     cell_sum_R += temp_R;
                     cell_sum_I -= temp_I;
@@ -251,8 +249,8 @@ main(void)
     cudaError_t err = cudaSuccess;
     /************* LARGE ARRAY DECLRATATIONS AND NX, NY, NZ************/
     int Nx = 143; // (int) floor((xmax-xmin)/res)+1; //143
-    int Ny = 10; //(int) floor((ymax-ymin)/res)+1; //143
-    int Nz = 10; //(int) floor((zmax-zmin)/res)+1; //43
+    int Ny = 143; //(int) floor((ymax-ymin)/res)+1; //143
+    int Nz = 43; //(int) floor((zmax-zmin)/res)+1; //43
 
     // complex<float> cell_sig_fst[N_x_stg][N_z_stg][N_mfreq_spl];
     // complex<float> cell_sig_slow[N_x_stg][N_z_stg][N_mfreq_spl_slow];
@@ -265,7 +263,7 @@ main(void)
     float* cell_MF_I = (float*)malloc(Nx * Ny * Nz * sizeof(float)); //[Nx][Ny][Nz] 143 * 143 *43
     
     // Verify that allocations succeeded
-    if (Beat_R == NULL || Beat_I == NULL || cell_MF == NULL )
+    if (Beat_R == NULL || Beat_I == NULL || cell_MF_R == NULL || cell_MF_I == NULL )
     {
         fprintf(stderr, "Failed to allocate host vectors!\n");
         exit(EXIT_FAILURE);
@@ -444,12 +442,12 @@ main(void)
 	cout << N_mfreq_spl_slow << endl;
 
 	end = clock();
-    cout << "DONE! Time taken:" << (double) (end - begin) / CLOCKS_PER_SEC;
+    cout << "DONE! Time taken:" << (double) (end - begin) / CLOCKS_PER_SEC << endl;
 
     for (int i = 0; i < 1; i++){
         for (int j = 0; j < 5; j++){
             for (int k = 0; k < 5; k++) {
-                cout << cell_MF_R(k, j, i) << cell_MF_I(k, j, i) << " ";
+                cout << "(" << cell_MF_R(k, j, i) << ", " << cell_MF_I(k, j, i) << ") ";
             }
             std::endl( std::cout );
         }

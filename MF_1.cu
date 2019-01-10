@@ -132,15 +132,18 @@ __global__ void matchedFilterKernel(float* Beat_R, float* Beat_I, float* cell_MF
     #define u_axis(uu) (-dlx/2 - uu*dlx)
     #define v_axis(vv) (-dlz/2 - vv*dlz)
 
+    __shared__ float block_cell_sum_I;
+    __shared__ float block_cell_sum_R;
+
     const float pi = acosf(-1);
 
-    int xx, yy, zz;
+    int xx, yy, zz, uu, vv;
     xx = blockIdx.x;
     yy = blockIdx.y;
     zz = blockIdx.z;
 
     uu = threadIdx.x;
-    vv = threadIdx.y
+    vv = threadIdx.y;
 
     if(xx < Nx && yy < Ny && zz < Nz && uu < N_x_stg && vv < N_z_stg) {
         float cell_z = MF_z_axis(zz);
@@ -218,12 +221,15 @@ __global__ void matchedFilterKernel(float* Beat_R, float* Beat_I, float* cell_MF
             cell_sum_I -= temp_I;
         }
 
-        atomicAdd(&cell_MF_R(xx, yy, zz), cell_sum_R));
-        atomicAdd(&cell_MF_I(xx, yy, zz), cell_sum_I));
+        atomicAdd(&block_cell_sum_R, cell_sum_R);
+        atomicAdd(&block_cell_sum_I, cell_sum_I);
 
-
-        // cell_MF_R(xx, yy, zz) = cell_sum_R;
-        // cell_MF_I(xx, yy, zz) = cell_sum_I;
+        __syncthreads();
+        
+        if (uu == 0 && vv == 0){
+            cell_MF_R(xx, yy, zz) = block_cell_sum_R;
+            cell_MF_I(xx, yy, zz) = block_cell_sum_I;
+        }
     }
 
 
@@ -247,8 +253,8 @@ main(void)
     cudaError_t err = cudaSuccess;
     /************* LARGE ARRAY DECLRATATIONS AND NX, NY, NZ************/
     int Nx = 143; // (int) floor((xmax-xmin)/res)+1; //143
-    int Ny = 143; //(int) floor((ymax-ymin)/res)+1; //143
-    int Nz = 43; //(int) floor((zmax-zmin)/res)+1; //43
+    int Ny = 10; //(int) floor((ymax-ymin)/res)+1; //143
+    int Nz = 10; //(int) floor((zmax-zmin)/res)+1; //43
 
     // complex<float> cell_sig_fst[N_x_stg][N_z_stg][N_mfreq_spl];
     // complex<float> cell_sig_slow[N_x_stg][N_z_stg][N_mfreq_spl_slow];
@@ -393,8 +399,8 @@ main(void)
     cout << "hi!" << endl;
 
     
-    dim3 DimGrid(ceil(Nx), ceil(Ny), ceil(Nz));
-    dim3 DimBlock(N_x_stg, N_z_stg, 1);
+    dim3 DimGrid(Nx, Ny, Nz);
+    dim3 DimBlock(N_x_stg, N_z_stg);
 
     cout << "Allocating & copying memory DONE! Time taken:" << (double) (clock() - begin_mem) / CLOCKS_PER_SEC;
     
